@@ -161,36 +161,33 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   String? _errorMessage;
-  bool _isLoading = false;
 
-  Future<void> _signInWithEmail() async {
-    setState(() => _isLoading = true);
+  Future<void> _signInWithEmail(BuildContext context) async {
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
       if (mounted) {
-        setState(() => _isLoading = false);
+        Navigator.pop(context); // Close loading dialog
         Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {
       if (mounted) {
+        Navigator.pop(context); // Close loading dialog
         setState(() {
-          _isLoading = false;
           _errorMessage = 'Sign-in failed: ${e.toString()}';
         });
       }
     }
   }
 
-  Future<void> _signInWithGoogle() async {
-    setState(() => _isLoading = true);
+  Future<void> _signInWithGoogle(BuildContext context) async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) {
-        if (mounted) setState(() => _isLoading = false);
-        return;
+        if (mounted) Navigator.pop(context); // Close loading dialog
+        return; // User canceled sign-in
       }
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
@@ -199,17 +196,28 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       await FirebaseAuth.instance.signInWithCredential(credential);
       if (mounted) {
-        setState(() => _isLoading = false);
+        Navigator.pop(context); // Close loading dialog
         Navigator.pushReplacementNamed(context, '/home');
       }
     } catch (e) {
       if (mounted) {
+        Navigator.pop(context); // Close loading dialog
         setState(() {
-          _isLoading = false;
           _errorMessage = 'Google sign-in failed: ${e.toString()}';
         });
       }
     }
+  }
+
+  void _showLoadingDialog(BuildContext context, Future<void> Function(BuildContext) signInMethod) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent closing dialog manually
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+    signInMethod(context);
   }
 
   @override
@@ -221,9 +229,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
       body: SingleChildScrollView(
@@ -268,7 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _signInWithEmail,
+                onPressed: () => _showLoadingDialog(context, _signInWithEmail),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFC5BE92),
                   foregroundColor: const Color(0xFF000000),
@@ -282,7 +287,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _signInWithGoogle,
+                onPressed: () => _showLoadingDialog(context, _signInWithGoogle),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.black,
