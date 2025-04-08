@@ -29,9 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Builder(
             builder: (context) => IconButton(
               icon: const Icon(Icons.menu, color: Color(0xFFF2F2F4)),
-              onPressed: () {
-                Scaffold.of(context).openEndDrawer();
-              },
+              onPressed: () => Scaffold.of(context).openEndDrawer(),
             ),
           ),
         ],
