@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:html/parser.dart' show parse;
+import 'package:cached_network_image/cached_network_image.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -160,97 +161,121 @@ class NewsModule extends StatelessWidget {
     }
   }
 
+  String _extractSubhead(String content) {
+    final document = parse(content);
+    final h2 = document.querySelector('h2');
+    return h2?.text ?? '';
+  }
+
+  List<String> _extractImageUrls(String content) {
+    final document = parse(content);
+    final images = document.querySelectorAll('img');
+    return images.map((img) => img.attributes['src'] ?? '').toList();
+  }
+
+  List<Widget> _buildExcerptLines(String excerpt) {
+    final document = parse(excerpt);
+    final paragraphs = document.querySelectorAll('p');
+    final lines = paragraphs.expand((p) => p.text.split('<br />')).where((line) => line.trim().isNotEmpty).toList();
+    return lines.take(5).map((line) => Padding(
+      padding: const EdgeInsets.only(bottom: 4.0),
+      child: Text(
+        line.trim(),
+        style: const TextStyle(color: Color(0xFFF2F2F4), height: 1.5),
+      ),
+    )).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
-    String title = post['title'] ?? 'Untitled';
-    String summary = post['excerpt'] != null
-        ? parse(post['excerpt']).body?.text ?? 'No summary available'
-        : 'No summary available';
+    final title = post['title'] ?? 'Untitled';
+    final subhead = _extractSubhead(post['content'] ?? '');
+    final excerptLines = _buildExcerptLines(post['excerpt'] ?? 'No summary available');
+    final imageUrls = _extractImageUrls(post['content'] ?? '');
 
     return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(context, '/story', arguments: post);
-      },
+      onTap: () => Navigator.pushNamed(context, '/story', arguments: post),
       child: Container(
+        height: 300,  // Fixed height for carousel
         margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-        padding: const EdgeInsets.all(16.0),
         decoration: BoxDecoration(
           color: const Color(0xFF2F2F2F),
           borderRadius: BorderRadius.circular(8.0),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: PageView(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFF2F2F4),
-                    ),
-                  ),
-                ),
-                StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseAuth.instance.currentUser != null
-                      ? FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(FirebaseAuth.instance.currentUser!.uid)
-                          .collection('saved_stories')
-                          .doc(post['id'].toString())
-                          .snapshots()
-                      : null,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return IconButton(
-                        icon: Icon(
-                          Icons.save,
-                          color: const Color(0xFFC5BE92).withOpacity(0.3),
-                        ),
-                        onPressed: null,
-                      );
-                    }
-                    bool isSaved = snapshot.hasData && snapshot.data!.exists;
-                    return IconButton(
-                      icon: Icon(
-                        Icons.save,
-                        color: isSaved
-                            ? const Color(0xFFC5BE92)
-                            : const Color(0xFFC5BE92).withOpacity(0.3),
-                      ),
-                      onPressed: () => _toggleSavePost(context, isSaved),
-                    );
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              summary,
-              maxLines: 10,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                height: 1.5,
-                color: Color(0xFFF2F2F4),
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (post['link'] != null)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+            // Page 1: Text Content
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GestureDetector(
-                    onTap: () {},
-                    child: const Text(
-                      'Source',
-                      style: TextStyle(color: Color(0xFFC5BE92)),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFF2F2F4),
+                          ),
+                        ),
+                      ),
+                      StreamBuilder<DocumentSnapshot>(
+                        stream: FirebaseAuth.instance.currentUser != null
+                            ? FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(FirebaseAuth.instance.currentUser!.uid)
+                                .collection('saved_stories')
+                                .doc(post['id'].toString())
+                                .snapshots()
+                            : null,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return IconButton(
+                              icon: Icon(
+                                Icons.bookmark_border,
+                                color: const Color(0xFFC5BE92).withOpacity(0.3),
+                              ),
+                              onPressed: null,
+                            );
+                          }
+                          bool isSaved = snapshot.hasData && snapshot.data!.exists;
+                          return IconButton(
+                            icon: Icon(
+                              isSaved ? Icons.bookmark : Icons.bookmark_border,
+                              color: isSaved
+                                  ? const Color(0xFFC5BE92)
+                                  : const Color(0xFFC5BE92).withOpacity(0.3),
+                            ),
+                            onPressed: () => _toggleSavePost(context, isSaved),
+                          );
+                        },
+                      ),
+                    ],
                   ),
+                  if (subhead.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        subhead,
+                        style: const TextStyle(color: Color(0xFFF2F2F4), fontSize: 16),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  Expanded(child: Column(children: excerptLines)),
                 ],
               ),
+            ),
+            // Pages 2+: Image Carousel
+            ...imageUrls.map((url) => CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+              errorWidget: (context, url, error) => const Icon(Icons.error),
+            )),
           ],
         ),
       ),
