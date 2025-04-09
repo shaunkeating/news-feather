@@ -75,13 +75,33 @@ class StoryDetailsScreen extends StatelessWidget {
     }
   }
 
+  List<Widget> _buildContentParagraphs(String content, String subhead) {
+    try {
+      final document = parse(content);
+      // Remove <h2>, <a>, and <img> tags
+      document.querySelectorAll('h2').forEach((element) => element.remove());
+      document.querySelectorAll('a').forEach((element) => element.remove());
+      document.querySelectorAll('img').forEach((element) => element.remove());
+      final paragraphs = document.querySelectorAll('p');
+      return paragraphs.map((p) => Padding(
+        padding: const EdgeInsets.only(bottom: 16.0),
+        child: Text(
+          p.text.trim(),
+          style: const TextStyle(color: Color(0xFFF2F2F4), fontSize: 16),
+        ),
+      )).toList();
+    } catch (e) {
+      return [const Text('No content available', style: TextStyle(color: Color(0xFFF2F2F4), fontSize: 16))];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = post['title'] ?? 'Untitled';
     final subhead = _extractSubhead(post['content'] ?? '');
-    final contentText = parse(post['content'] ?? '').body?.text ?? 'No content available';
     final imageUrls = _extractImageUrls(post['content'] ?? '');
     final sourceLinks = _extractSourceLinks(post['content'] ?? '');
+    final contentParagraphs = _buildContentParagraphs(post['content'] ?? '', subhead);
 
     return Scaffold(
       appBar: AppBar(
@@ -182,10 +202,7 @@ class StoryDetailsScreen extends StatelessWidget {
                         ),
                       ),
                     const SizedBox(height: 16),
-                    Text(
-                      contentText,
-                      style: const TextStyle(color: Color(0xFFF2F2F4), height: 1.5),
-                    ),
+                    Column(children: contentParagraphs),
                     if (sourceLinks.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       const Text(
