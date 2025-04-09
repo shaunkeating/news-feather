@@ -126,41 +126,6 @@ class NewsModule extends StatelessWidget {
 
   const NewsModule({required this.post, super.key});
 
-  Future<void> _toggleSavePost(BuildContext context, bool isSaved) async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        await user.reload();
-        user = FirebaseAuth.instance.currentUser;
-        final ref = FirebaseFirestore.instance
-            .collection('users')
-            .doc(user!.uid)
-            .collection('saved_stories')
-            .doc(post['id'].toString());
-        
-        if (isSaved) {
-          await ref.delete();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Removed from saved stories')),
-          );
-        } else {
-          await ref.set(post);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Saved!')),
-          );
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: $e')),
-        );
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to save stories')),
-      );
-    }
-  }
-
   String _extractSubhead(String content) {
     try {
       final document = parse(content);
@@ -208,7 +173,7 @@ class NewsModule extends StatelessWidget {
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, '/story', arguments: post),
       child: Container(
-        height: 450,  // Increased to fit content
+        height: 450,
         margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
         decoration: BoxDecoration(
           color: const Color(0xFF2F2F2F),
@@ -218,7 +183,6 @@ class NewsModule extends StatelessWidget {
           borderRadius: BorderRadius.circular(8.0),
           child: PageView(
             children: [
-              // Page 1: Text and Carousel
               SingleChildScrollView(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -238,37 +202,7 @@ class NewsModule extends StatelessWidget {
                               ),
                             ),
                           ),
-                          StreamBuilder<DocumentSnapshot>(
-                            stream: FirebaseAuth.instance.currentUser != null
-                                ? FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(FirebaseAuth.instance.currentUser!.uid)
-                                    .collection('saved_stories')
-                                    .doc(post['id'].toString())
-                                    .snapshots()
-                                : null,
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return IconButton(
-                                  icon: Icon(
-                                    Icons.save,
-                                    color: const Color(0xFFC5BE92).withOpacity(0.3),
-                                  ),
-                                  onPressed: null,
-                                );
-                              }
-                              bool isSaved = snapshot.hasData && snapshot.data!.exists;
-                              return IconButton(
-                                icon: Icon(
-                                  Icons.save,
-                                  color: isSaved
-                                      ? const Color(0xFFC5BE92)
-                                      : const Color(0xFFC5BE92).withOpacity(0.3),
-                                ),
-                                onPressed: () => _toggleSavePost(context, isSaved),
-                              );
-                            },
-                          ),
+                          SaveIconButton(post: post),
                         ],
                       ),
                       if (subhead.isNotEmpty)
@@ -287,7 +221,7 @@ class NewsModule extends StatelessWidget {
                       if (imageUrls.isNotEmpty)
                         Container(
                           height: 200,
-                          width: double.infinity,  // Constrain width
+                          width: double.infinity,
                           child: PageView(
                             children: imageUrls.map((url) => CachedNetworkImage(
                               imageUrl: url,
@@ -303,7 +237,6 @@ class NewsModule extends StatelessWidget {
                   ),
                 ),
               ),
-              // Additional Pages: Fullscreen Images
               ...imageUrls.map((url) => CachedNetworkImage(
                 imageUrl: url,
                 fit: BoxFit.cover,
@@ -314,6 +247,92 @@ class NewsModule extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class SaveIconButton extends StatefulWidget {
+  final Map<String, dynamic> post;
+
+  const SaveIconButton({required this.post, super.key});
+
+  @override
+  _SaveIconButtonState createState() => _SaveIconButtonState();
+}
+
+class _SaveIconButtonState extends State<SaveIconButton> {
+  bool? _isSaved;
+
+  Future<void> _toggleSavePost(BuildContext context, bool isSaved) async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        await user.reload();
+        user = FirebaseAuth.instance.currentUser;
+        final ref = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user!.uid)
+            .collection('saved_stories')
+            .doc(widget.post['id'].toString());
+        
+        if (isSaved) {
+          await ref.delete();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Removed from saved stories')),
+          );
+        } else {
+          await ref.set(widget.post);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Saved!')),
+          );
+        }
+        setState(() {
+          _isSaved = !isSaved;
+        });
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update: $e')),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to save stories')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseAuth.instance.currentUser != null
+          ? FirebaseFirestore.instance
+              .collection('users')
+              .doc(FirebaseAuth.instance.currentUser!.uid)
+              .collection('saved_stories')
+              .doc(widget.post['id'].toString())
+              .snapshots()
+          : null,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting && _isSaved == null) {
+          return IconButton(
+            icon: Icon(
+              Icons.save,
+              color: const Color(0xFFC5BE92).withOpacity(0.3),
+            ),
+            onPressed: null,
+          );
+        }
+        bool isSaved = _isSaved ?? (snapshot.hasData && snapshot.data!.exists);
+        return IconButton(
+          icon: Icon(
+            Icons.save,
+            color: isSaved
+                ? const Color(0xFFC5BE92)
+                : const Color(0xFFC5BE92).withOpacity(0.3),
+          ),
+          onPressed: () => _toggleSavePost(context, isSaved),
+        );
+      },
     );
   }
 }
