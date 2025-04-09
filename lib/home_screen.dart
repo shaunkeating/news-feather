@@ -162,28 +162,40 @@ class NewsModule extends StatelessWidget {
   }
 
   String _extractSubhead(String content) {
-    final document = parse(content);
-    final h2 = document.querySelector('h2');
-    return h2?.text ?? '';
+    try {
+      final document = parse(content);
+      final h2 = document.querySelector('h2');
+      return h2?.text ?? '';
+    } catch (e) {
+      return '';
+    }
   }
 
   List<String> _extractImageUrls(String content) {
-    final document = parse(content);
-    final images = document.querySelectorAll('img');
-    return images.map((img) => img.attributes['src'] ?? '').toList();
+    try {
+      final document = parse(content);
+      final images = document.querySelectorAll('img');
+      return images.map((img) => img.attributes['src'] ?? '').where((url) => url.isNotEmpty).toList();
+    } catch (e) {
+      return [];
+    }
   }
 
   List<Widget> _buildExcerptLines(String excerpt) {
-    final document = parse(excerpt);
-    final paragraphs = document.querySelectorAll('p');
-    final lines = paragraphs.expand((p) => p.text.split('<br />')).where((line) => line.trim().isNotEmpty).toList();
-    return lines.take(5).map((line) => Padding(
-      padding: const EdgeInsets.only(bottom: 4.0),
-      child: Text(
-        line.trim(),
-        style: const TextStyle(color: Color(0xFFF2F2F4), height: 1.5),
-      ),
-    )).toList();
+    try {
+      final document = parse(excerpt);
+      final paragraphs = document.querySelectorAll('p');
+      final lines = paragraphs.expand((p) => p.text.split('<br />')).where((line) => line.trim().isNotEmpty).toList();
+      return lines.take(5).map((line) => Padding(
+        padding: const EdgeInsets.only(bottom: 4.0),
+        child: Text(
+          line.trim(),
+          style: const TextStyle(color: Color(0xFFF2F2F4), height: 1.5),
+        ),
+      )).toList();
+    } catch (e) {
+      return [const Text('No summary available', style: TextStyle(color: Color(0xFFF2F2F4)))];
+    }
   }
 
   @override
@@ -196,87 +208,110 @@ class NewsModule extends StatelessWidget {
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, '/story', arguments: post),
       child: Container(
-        height: 300,  // Fixed height for carousel
+        height: 450,  // Increased to fit content
         margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
         decoration: BoxDecoration(
           color: const Color(0xFF2F2F2F),
           borderRadius: BorderRadius.circular(8.0),
         ),
-        child: PageView(
-          children: [
-            // Page 1: Text Content
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8.0),
+          child: PageView(
+            children: [
+              // Page 1: Text and Carousel
+              SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFFF2F2F4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFF2F2F4),
+                              ),
+                            ),
+                          ),
+                          StreamBuilder<DocumentSnapshot>(
+                            stream: FirebaseAuth.instance.currentUser != null
+                                ? FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(FirebaseAuth.instance.currentUser!.uid)
+                                    .collection('saved_stories')
+                                    .doc(post['id'].toString())
+                                    .snapshots()
+                                : null,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return IconButton(
+                                  icon: Icon(
+                                    Icons.save,
+                                    color: const Color(0xFFC5BE92).withOpacity(0.3),
+                                  ),
+                                  onPressed: null,
+                                );
+                              }
+                              bool isSaved = snapshot.hasData && snapshot.data!.exists;
+                              return IconButton(
+                                icon: Icon(
+                                  Icons.save,
+                                  color: isSaved
+                                      ? const Color(0xFFC5BE92)
+                                      : const Color(0xFFC5BE92).withOpacity(0.3),
+                                ),
+                                onPressed: () => _toggleSavePost(context, isSaved),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                      if (subhead.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            subhead,
+                            style: const TextStyle(
+                              color: Color(0xFFF2F2F4),
+                              fontSize: 16,
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
                         ),
-                      ),
-                      StreamBuilder<DocumentSnapshot>(
-                        stream: FirebaseAuth.instance.currentUser != null
-                            ? FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(FirebaseAuth.instance.currentUser!.uid)
-                                .collection('saved_stories')
-                                .doc(post['id'].toString())
-                                .snapshots()
-                            : null,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return IconButton(
-                              icon: Icon(
-                                Icons.bookmark_border,
-                                color: const Color(0xFFC5BE92).withOpacity(0.3),
-                              ),
-                              onPressed: null,
-                            );
-                          }
-                          bool isSaved = snapshot.hasData && snapshot.data!.exists;
-                          return IconButton(
-                            icon: Icon(
-                              isSaved ? Icons.bookmark : Icons.bookmark_border,
-                              color: isSaved
-                                  ? const Color(0xFFC5BE92)
-                                  : const Color(0xFFC5BE92).withOpacity(0.3),
-                            ),
-                            onPressed: () => _toggleSavePost(context, isSaved),
-                          );
-                        },
-                      ),
+                      const SizedBox(height: 8),
+                      if (imageUrls.isNotEmpty)
+                        Container(
+                          height: 200,
+                          width: double.infinity,  // Constrain width
+                          child: PageView(
+                            children: imageUrls.map((url) => CachedNetworkImage(
+                              imageUrl: url,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                              errorWidget: (context, url, error) => const Center(child: Icon(Icons.error)),
+                            )).toList(),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Column(children: excerptLines),
                     ],
                   ),
-                  if (subhead.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        subhead,
-                        style: const TextStyle(color: Color(0xFFF2F2F4), fontSize: 16),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  Expanded(child: Column(children: excerptLines)),
-                ],
+                ),
               ),
-            ),
-            // Pages 2+: Image Carousel
-            ...imageUrls.map((url) => CachedNetworkImage(
-              imageUrl: url,
-              fit: BoxFit.cover,
-              placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
-              errorWidget: (context, url, error) => const Icon(Icons.error),
-            )),
-          ],
+              // Additional Pages: Fullscreen Images
+              ...imageUrls.map((url) => CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                errorWidget: (context, url, error) => const Center(child: Icon(Icons.error)),
+              )),
+            ],
+          ),
         ),
       ),
     );
