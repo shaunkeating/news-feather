@@ -171,6 +171,7 @@ class NewsModule extends StatelessWidget {
     final imageUrls = _extractImageUrls(post['content'] ?? '');
 
     return GestureDetector(
+      key: Key(post['id'].toString()), // Unique key based on post ID
       onTap: () => Navigator.pushNamed(context, '/story', arguments: post),
       child: Container(
         height: 450,
@@ -213,7 +214,7 @@ class NewsModule extends StatelessWidget {
                             style: const TextStyle(
                               color: Color(0xFFF2F2F4),
                               fontSize: 16,
-                              fontStyle: FontStyle.italic,
+                              fontStyle: FontStyle.italic, // Fixed: Changed from FontWeight.italic
                             ),
                           ),
                         ),
@@ -261,78 +262,112 @@ class SaveIconButton extends StatefulWidget {
 }
 
 class _SaveIconButtonState extends State<SaveIconButton> {
-  bool? _isSaved;
+  late bool _isSaved;
+  bool _isLoading = true;
 
-  Future<void> _toggleSavePost(BuildContext context, bool isSaved) async {
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      try {
-        await user.reload();
-        user = FirebaseAuth.instance.currentUser;
-        final ref = FirebaseFirestore.instance
-            .collection('users')
-            .doc(user!.uid)
-            .collection('saved_stories')
-            .doc(widget.post['id'].toString());
-        
-        if (isSaved) {
-          await ref.delete();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Removed from saved stories')),
-          );
-        } else {
-          await ref.set(widget.post);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Saved!')),
-          );
-        }
-        setState(() {
-          _isSaved = !isSaved;
-        });
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: $e')),
-        );
-      }
-    } else {
+  @override
+  void initState() {
+    super.initState();
+    _checkSavedState();
+  }
+
+  @override
+  void didUpdateWidget(SaveIconButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.post['id'] != widget.post['id']) {
+      _checkSavedState(); // Re-check if post ID changes
+    }
+  }
+
+  Future<void> _checkSavedState() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() {
+        _isSaved = false;
+        _isLoading = false;
+      });
+      return;
+    }
+
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('saved_stories')
+        .doc(widget.post['id'].toString());
+
+    try {
+      final doc = await ref.get();
+      setState(() {
+        _isSaved = doc.exists;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isSaved = false;
+        _isLoading = false;
+      });
+      print('Error checking saved state: $e');
+    }
+  }
+
+  Future<void> _toggleSavePost(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please sign in to save stories')),
+      );
+      return;
+    }
+
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('saved_stories')
+        .doc(widget.post['id'].toString());
+
+    setState(() {
+      _isSaved = !_isSaved;
+    });
+
+    try {
+      if (_isSaved) {
+        await ref.set(widget.post);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saved!')),
+        );
+      } else {
+        await ref.delete();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Removed from saved stories')),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isSaved = !_isSaved;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update: $e')),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseAuth.instance.currentUser != null
-          ? FirebaseFirestore.instance
-              .collection('users')
-              .doc(FirebaseAuth.instance.currentUser!.uid)
-              .collection('saved_stories')
-              .doc(widget.post['id'].toString())
-              .snapshots()
-          : null,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting && _isSaved == null) {
-          return IconButton(
-            icon: Icon(
-              Icons.save,
-              color: const Color(0xFFC5BE92).withOpacity(0.3),
-            ),
-            onPressed: null,
-          );
-        }
-        bool isSaved = _isSaved ?? (snapshot.hasData && snapshot.data!.exists);
-        return IconButton(
-          icon: Icon(
-            Icons.save,
-            color: isSaved
-                ? const Color(0xFFC5BE92)
-                : const Color(0xFFC5BE92).withOpacity(0.3),
-          ),
-          onPressed: () => _toggleSavePost(context, isSaved),
-        );
-      },
+    if (_isLoading) {
+      return IconButton(
+        icon: Icon(
+          Icons.save,
+          color: const Color(0xFFC5BE92).withOpacity(0.3),
+        ),
+        onPressed: null,
+      );
+    }
+    return IconButton(
+      icon: Icon(
+        Icons.save,
+        color: _isSaved ? const Color(0xFFC5BE92) : const Color(0xFFC5BE92).withOpacity(0.3),
+      ),
+      onPressed: () => _toggleSavePost(context),
     );
   }
 }

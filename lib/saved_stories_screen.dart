@@ -69,10 +69,42 @@ class _SavedStoriesScreenState extends State<SavedStoriesScreen> {
                   );
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No saved stories yet',
-                      style: TextStyle(color: Color(0xFFF2F2F4), fontSize: 18),
+                  return Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(16.0),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2F2F2F), // Matches your dark theme
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.bookmark_border,
+                            color: Color(0xFFF2F2F4),
+                            size: 48.0,
+                          ),
+                          SizedBox(height: 16.0),
+                          Text(
+                            'No saved stories yet',
+                            style: TextStyle(
+                              color: Color(0xFFF2F2F4),
+                              fontSize: 20.0,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 8.0),
+                          Text(
+                            'Save stories from the home screen to see them here!',
+                            style: TextStyle(
+                              color: Color(0xFFF2F2F4),
+                              fontSize: 14.0,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }
