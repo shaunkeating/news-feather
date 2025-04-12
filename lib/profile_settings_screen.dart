@@ -14,12 +14,12 @@ class ProfileSettingsScreen extends StatefulWidget {
 }
 
 class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
-  final String currentPlan = 'Free';
   File? _image;
   String _photoUrl = '';
   String _displayName = 'Loading...';
-  final picker = ImagePicker();
+  bool _isSubscribed = false;
   bool _isLoading = false;
+  final picker = ImagePicker();
 
   @override
   void initState() {
@@ -29,28 +29,33 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
   Future<void> _loadUserData() async {
     User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      setState(() {
+        _displayName = 'Unknown';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() => _isLoading = true);
     try {
       DocumentSnapshot doc = await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
           .get();
       if (!mounted) return;
-      if (doc.exists) {
-        setState(() {
-          _photoUrl = doc.data()?.toString().contains('photo_url') == true ? doc['photo_url'] ?? '' : '';
-          _displayName = user.displayName ??
-              '${doc['firstName'] ?? ''} ${doc['lastName'] ?? ''}'.trim() ??
-              user.email ??
-              'Unknown';
-        });
-      } else {
-        setState(() {
-          _displayName = user.displayName ?? user.email ?? 'Unknown';
-        });
-      }
+      setState(() {
+        _photoUrl = doc.data()?.toString().contains('photo_url') == true ? doc['photo_url'] ?? '' : '';
+        _displayName = user.displayName ??
+            '${doc['firstName'] ?? ''} ${doc['lastName'] ?? ''}'.trim() ??
+            user.email ??
+            'Unknown';
+        _isSubscribed = doc.data()?.toString().contains('isSubscribed') == true ? doc['isSubscribed'] ?? false : false;
+        _isLoading = false;
+      });
     } catch (e) {
       if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load user data: $e')),
         );
@@ -60,7 +65,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
 
   Future<void> _pickImage() async {
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
+    if (pickedFile != null && mounted) {
       setState(() {
         _image = File(pickedFile.path);
       });
@@ -85,17 +90,21 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           .doc(user.uid)
           .set({'photo_url': downloadUrl}, SetOptions(merge: true));
 
-      setState(() {
-        _photoUrl = downloadUrl;
-        _image = null;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Avatar updated!')),
-      );
+      if (mounted) {
+        setState(() {
+          _photoUrl = downloadUrl;
+          _image = null;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Avatar updated!')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update avatar: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update avatar: $e')),
+        );
+      }
     }
     if (mounted) setState(() => _isLoading = false);
   }
@@ -167,14 +176,18 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                     SetOptions(merge: true),
                   );
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Email updated!')),
-                  );
-                  await _loadUserData();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Email updated!')),
+                    );
+                    await _loadUserData();
+                  }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Failed to update email: $e')),
-                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to update email: $e')),
+                    );
+                  }
                 }
                 if (mounted) setState(() => _isLoading = false);
               }
@@ -272,7 +285,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  'Current Plan: $currentPlan',
+                                  'Current Plan: ${_isSubscribed ? 'Ultimate' : 'Free'}',
                                   style: const TextStyle(
                                     color: Color(0xFF000000),
                                     fontSize: 18,
@@ -280,7 +293,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                if (currentPlan == 'Free') ...[
+                                if (!_isSubscribed) ...[
                                   const Text(
                                     'Upgrade to News Feather Ultimate and go ad-free',
                                     style: TextStyle(color: Color(0xFF000000)),
@@ -289,19 +302,33 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                                   ElevatedButton(
                                     onPressed: () => Navigator.pushNamed(context, '/ultimate'),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF2F2F2F),
-                                      foregroundColor: const Color(0xFFF2F2F4),
+  backgroundColor: const Color(0xFF2F2F2F),
+  foregroundColor: const Color(0xFFF2F2F4),
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(8),
+  ),
+),
+                                    child: const Text(
+                                      'Upgrade Now',
+                                      style: TextStyle(fontSize: 14),
                                     ),
-                                    child: const Text('Upgrade Now'),
                                   ),
                                 ] else ...[
                                   ElevatedButton(
                                     onPressed: () => Navigator.pushNamed(context, '/ultimate'),
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF2F2F2F),
-                                      foregroundColor: const Color(0xFFF2F2F4),
+  backgroundColor: const Color(0xFF2F2F2F),
+  foregroundColor: const Color(0xFFF2F2F4),
+  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(8),
+  ),
+),
+                                    child: const Text(
+                                      'Change Plan',
+                                      style: TextStyle(fontSize: 14),
                                     ),
-                                    child: const Text('Change Plan'),
                                   ),
                                 ],
                               ],

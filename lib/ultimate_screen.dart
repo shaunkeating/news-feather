@@ -1,12 +1,148 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 
-class NewsFeatherUltimateScreen extends StatelessWidget {
-  final String currentPlan = 'Free';
-
+class NewsFeatherUltimateScreen extends StatefulWidget {
   const NewsFeatherUltimateScreen({super.key});
 
   @override
+  _NewsFeatherUltimateScreenState createState() => _NewsFeatherUltimateScreenState();
+}
+
+class _NewsFeatherUltimateScreenState extends State<NewsFeatherUltimateScreen> {
+  final InAppPurchase _inAppPurchase = InAppPurchase.instance;
+  late Stream<List<PurchaseDetails>> _purchaseStream;
+  bool _isAvailable = false;
+  bool _isSubscribed = false;
+  List<ProductDetails> _products = [];
+  bool _loading = true;
+
+  static const Set<String> _productIds = {'monthly_subscription'};
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await Future.wait([
+      _initializePurchases(),
+      _checkSubscriptionStatus(),
+    ]);
+    if (mounted) {
+      setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _initializePurchases() async {
+    _isAvailable = true; // Simulate availability
+    setState(() {
+      _products = [
+        ProductDetails(
+          id: 'monthly_subscription',
+          title: 'News Feather Ultimate Monthly',
+          description: 'Unlimited ad-free news and exclusive content',
+          price: '\$2.99',
+          rawPrice: 2.99,
+          currencyCode: 'USD',
+        ),
+      ];
+    });
+    _purchaseStream = _inAppPurchase.purchaseStream;
+    _purchaseStream.listen(_handlePurchaseUpdate);
+  }
+
+  Future<void> _checkSubscriptionStatus() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    if (mounted) {
+      setState(() {
+        _isSubscribed = doc.data()?['isSubscribed'] ?? false;
+      });
+    }
+  }
+
+  Future<void> _handlePurchaseUpdate(List<PurchaseDetails> purchases) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    for (final purchase in purchases) {
+      if (purchase.status == PurchaseStatus.purchased) {
+        if (purchase.purchaseID != 'test_purchase') {
+          await _inAppPurchase.completePurchase(purchase);
+        }
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .set({'isSubscribed': true}, SetOptions(merge: true));
+        if (mounted) {
+          setState(() => _isSubscribed = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Subscription successful!')),
+          );
+        }
+      } else if (purchase.status == PurchaseStatus.error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Purchase error: ${purchase.error?.message}')),
+          );
+        }
+      }
+    }
+  }
+
+  void _buyProduct(ProductDetails product) {
+    _handlePurchaseUpdate([
+      PurchaseDetails(
+        purchaseID: 'test_purchase',
+        productID: product.id,
+        status: PurchaseStatus.purchased,
+        transactionDate: DateTime.now().toString(),
+        verificationData: PurchaseVerificationData(
+          localVerificationData: 'mock_data',
+          serverVerificationData: 'mock_data',
+          source: 'mock',
+        ),
+      ),
+    ]);
+  }
+
+  Future<void> _endSubscription() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to manage subscriptions')),
+      );
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set({'isSubscribed': false}, SetOptions(merge: true));
+      setState(() => _isSubscribed = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Subscription ended')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to end subscription: $e')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -30,7 +166,7 @@ class NewsFeatherUltimateScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
-                    currentPlan == 'Free' ? 'Upgrade to News Feather Ultimate' : 'Your Ultimate Plan',
+                    _isSubscribed ? 'Your Ultimate Plan' : 'Upgrade to News Feather Ultimate',
                     style: const TextStyle(
                       color: Color(0xFF000000),
                       fontSize: 24,
@@ -49,7 +185,7 @@ class NewsFeatherUltimateScreen extends StatelessWidget {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
-                  if (currentPlan == 'Free') ...[
+                  if (!_isSubscribed) ...[
                     const Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -70,9 +206,9 @@ class NewsFeatherUltimateScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      '\$2.99/month',
-                      style: TextStyle(
+                    Text(
+                      _products.isNotEmpty ? _products[0].price + '/month' : '\$2.99/month',
+                      style: const TextStyle(
                         color: Color(0xFF2F2F2F),
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -81,15 +217,13 @@ class NewsFeatherUltimateScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Upgrade coming soon!')),
-                        );
-                      },
+                      onPressed: _products.isEmpty
+                          ? null
+                          : () => _buyProduct(_products[0]),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2F2F2F),
                         foregroundColor: const Color(0xFFF2F2F4),
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                        minimumSize: const Size(double.infinity, 50),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -101,9 +235,9 @@ class NewsFeatherUltimateScreen extends StatelessWidget {
                     ),
                   ] else ...[
                     const SizedBox(height: 16),
-                    const Text(
-                      '\$2.99/month',
-                      style: TextStyle(
+                    Text(
+                      _products.isNotEmpty ? _products[0].price + '/month' : '\$2.99/month',
+                      style: const TextStyle(
                         color: Color(0xFF2F2F2F),
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -112,21 +246,17 @@ class NewsFeatherUltimateScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Change plan coming soon!')),
-                        );
-                      },
+                      onPressed: null,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2F2F2F),
-                        foregroundColor: const Color(0xFFF2F2F4),
+                        foregroundColor: const Color(0xFFF2F2F4).withOpacity(0.5),
                         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
-                        'Change Plan',
+                        'Subscribed',
                         style: TextStyle(fontSize: 16),
                       ),
                     ),
@@ -147,7 +277,7 @@ class NewsFeatherUltimateScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
-                    'Current Plan: $currentPlan',
+                    'Current Plan: ${_isSubscribed ? 'Ultimate' : 'Free'}',
                     style: const TextStyle(
                       color: Color(0xFFF2F2F4),
                       fontSize: 24,
@@ -155,13 +285,31 @@ class NewsFeatherUltimateScreen extends StatelessWidget {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  if (currentPlan == 'Free') ...[
+                  if (!_isSubscribed) ...[
                     const SizedBox(height: 16),
                     const Text(
                       '• Unlimited ad-supported news',
                       style: TextStyle(
                         color: Color(0xFFF2F2F4),
                         fontSize: 16,
+                      ),
+                    ),
+                  ],
+                  if (_isSubscribed) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _endSubscription,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFC5BE92),
+                        foregroundColor: const Color(0xFF000000),
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'End Subscription',
+                        style: TextStyle(fontSize: 16),
                       ),
                     ),
                   ],
