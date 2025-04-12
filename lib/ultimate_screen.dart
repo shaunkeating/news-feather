@@ -248,13 +248,13 @@ class _NewsFeatherUltimateScreenState extends State<NewsFeatherUltimateScreen> {
                     ElevatedButton(
                       onPressed: null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2F2F2F),
-                        foregroundColor: const Color(0xFFF2F2F4).withOpacity(0.5),
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
+  backgroundColor: const Color(0xFF2F2F2F),
+  foregroundColor: const Color(0xFFF2F2F4).withOpacity(0.5),
+  minimumSize: const Size(double.infinity, 50),
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(12),
+  ),
+),
                       child: const Text(
                         'Subscribed',
                         style: TextStyle(fontSize: 16),
@@ -300,13 +300,13 @@ class _NewsFeatherUltimateScreenState extends State<NewsFeatherUltimateScreen> {
                     ElevatedButton(
                       onPressed: _endSubscription,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFC5BE92),
-                        foregroundColor: const Color(0xFF000000),
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
+  backgroundColor: const Color(0xFFC5BE92),
+  foregroundColor: const Color(0xFF000000),
+  minimumSize: const Size(double.infinity, 50),
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(12),
+  ),
+),
                       child: const Text(
                         'End Subscription',
                         style: TextStyle(fontSize: 16),
