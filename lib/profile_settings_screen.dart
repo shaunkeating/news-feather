@@ -96,8 +96,11 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           _image = null;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Avatar updated!')),
-        );
+		  const SnackBar(
+		    content: Text('Avatar updated!'),
+		    duration: Duration(seconds: 2),
+		 ),
+	   );
       }
     } catch (e) {
       if (mounted) {
@@ -178,8 +181,11 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                   Navigator.pop(context);
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Email updated!')),
-                    );
+					  const SnackBar(
+						content: Text('Email updated!'),
+						duration: Duration(seconds: 2),
+					  ),
+					);
                     await _loadUserData();
                   }
                 } catch (e) {

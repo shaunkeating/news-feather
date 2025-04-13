@@ -67,33 +67,39 @@ class _NewsFeatherUltimateScreenState extends State<NewsFeatherUltimateScreen> {
   }
 
   Future<void> _handlePurchaseUpdate(List<PurchaseDetails> purchases) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
 
-    for (final purchase in purchases) {
-      if (purchase.status == PurchaseStatus.purchased) {
-        if (purchase.purchaseID != 'test_purchase') {
-          await _inAppPurchase.completePurchase(purchase);
-        }
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({'isSubscribed': true}, SetOptions(merge: true));
-        if (mounted) {
-          setState(() => _isSubscribed = true);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Subscription successful!')),
-          );
-        }
-      } else if (purchase.status == PurchaseStatus.error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Purchase error: ${purchase.error?.message}')),
-          );
-        }
+  for (final purchase in purchases) {
+    if (purchase.status == PurchaseStatus.purchased) {
+      if (purchase.purchaseID != 'test_purchase') {
+        await _inAppPurchase.completePurchase(purchase);
+      }
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set({'isSubscribed': true}, SetOptions(merge: true));
+      if (mounted) {
+        setState(() => _isSubscribed = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Subscription successful!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } else if (purchase.status == PurchaseStatus.error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Purchase error: ${purchase.error?.message}'),
+            duration: Duration(seconds: 2),
+          ),
+        );
       }
     }
   }
+}
 
   void _buyProduct(ProductDetails product) {
     _handlePurchaseUpdate([
@@ -112,29 +118,38 @@ class _NewsFeatherUltimateScreenState extends State<NewsFeatherUltimateScreen> {
   }
 
   Future<void> _endSubscription() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to manage subscriptions')),
-      );
-      return;
-    }
-
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set({'isSubscribed': false}, SetOptions(merge: true));
-      setState(() => _isSubscribed = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Subscription ended')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to end subscription: $e')),
-      );
-    }
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please sign in to manage subscriptions'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+    return;
   }
+
+  try {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({'isSubscribed': false}, SetOptions(merge: true));
+    setState(() => _isSubscribed = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Subscription ended'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to end subscription: $e'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {

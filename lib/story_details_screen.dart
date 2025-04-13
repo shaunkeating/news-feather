@@ -25,22 +25,34 @@ class StoryDetailsScreen extends StatelessWidget {
         if (isSaved) {
           await ref.delete();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Removed from saved stories')),
+            const SnackBar(
+              content: Text('Removed from saved stories'),
+              duration: Duration(seconds: 2),
+            ),
           );
         } else {
           await ref.set(post);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Saved!')),
+            const SnackBar(
+              content: Text('Saved!'),
+              duration: Duration(seconds: 2),
+            ),
           );
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: $e')),
+          SnackBar(
+            content: Text('Failed to update: $e'),
+            duration: Duration(seconds: 2),
+          ),
         );
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to save stories')),
+        const SnackBar(
+          content: Text('Please sign in to save stories'),
+          duration: Duration(seconds: 2),
+        ),
       );
     }
   }
@@ -218,7 +230,10 @@ class StoryDetailsScreen extends StatelessWidget {
                               await launchUrl(uri);
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Cannot launch $url')),
+                                SnackBar(
+                                  content: Text('Cannot launch $url'),
+                                  duration: Duration(seconds: 2),
+                                ),
                               );
                             }
                           },

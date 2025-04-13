@@ -311,45 +311,57 @@ class _SaveIconButtonState extends State<SaveIconButton> {
   }
 
   Future<void> _toggleSavePost(BuildContext context) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please sign in to save stories'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+    return;
+  }
+
+  final ref = FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .collection('saved_stories')
+      .doc(widget.post['id'].toString());
+
+  setState(() {
+    _isSaved = !_isSaved;
+  });
+
+  try {
+    if (_isSaved) {
+      await ref.set(widget.post);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to save stories')),
+        const SnackBar(
+          content: Text('Saved!'),
+          duration: Duration(seconds: 1),
+        ),
       );
-      return;
+    } else {
+      await ref.delete();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Removed from saved stories'),
+          duration: Duration(seconds: 1),
+        ),
+      );
     }
-
-    final ref = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('saved_stories')
-        .doc(widget.post['id'].toString());
-
+  } catch (e) {
     setState(() {
       _isSaved = !_isSaved;
     });
-
-    try {
-      if (_isSaved) {
-        await ref.set(widget.post);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Saved!')),
-        );
-      } else {
-        await ref.delete();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Removed from saved stories')),
-        );
-      }
-    } catch (e) {
-      setState(() {
-        _isSaved = !_isSaved;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to update: $e')),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to update: $e'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
