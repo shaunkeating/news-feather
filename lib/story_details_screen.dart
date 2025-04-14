@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:html/parser.dart' show parse;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'utils/subscription.dart';
 
 class StoryDetailsScreen extends StatelessWidget {
   final Map<String, dynamic> post;
@@ -90,7 +91,6 @@ class StoryDetailsScreen extends StatelessWidget {
   List<Widget> _buildContentParagraphs(String content, String subhead) {
     try {
       final document = parse(content);
-      // Remove <h2>, <a>, and <img> tags
       document.querySelectorAll('h2').forEach((element) => element.remove());
       document.querySelectorAll('a').forEach((element) => element.remove());
       document.querySelectorAll('img').forEach((element) => element.remove());
@@ -132,6 +132,24 @@ class StoryDetailsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            StreamBuilder<bool>(
+              stream: isUserSubscribedStream(),
+              builder: (context, adSnapshot) {
+                if (!adSnapshot.hasData) {
+                  return const SizedBox.shrink();
+                }
+                if (adSnapshot.data!) {
+                  return const SizedBox.shrink(); // Hide ad for subscribers
+                }
+                return Container(
+                  height: 50,
+                  margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                  color: const Color(0xFF3F3F3F),
+                  child: const Center(child: Text('Ad Space', style: TextStyle(color: Color(0xFFF2F2F4)))),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
             if (imageUrls.isNotEmpty)
               SizedBox(
                 height: 200,

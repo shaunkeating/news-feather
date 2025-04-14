@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:html/parser.dart' show parse;
 import 'package:cached_network_image/cached_network_image.dart';
+import 'utils/subscription.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,12 +14,51 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String filter = 'Week';
+  DocumentSnapshot? lastDocument;
+  List<DocumentSnapshot> posts = [];
+  bool hasMore = true;
+  bool isLoading = false;
 
   DateTime _getFilterDate() {
     final now = DateTime.now();
     if (filter == 'Week') return now.subtract(const Duration(days: 7));
     if (filter == 'Month') return now.subtract(const Duration(days: 30));
     return now.subtract(const Duration(days: 365));
+  }
+
+  Future<void> _loadPosts({bool nextPage = false}) async {
+    if (isLoading || !hasMore) return;
+    setState(() {
+      isLoading = true;
+    });
+
+    Query query = FirebaseFirestore.instance
+        .collection('wordpress_posts')
+        .where('date', isGreaterThan: _getFilterDate().toIso8601String())
+        .orderBy('date', descending: true)
+        .limit(5);
+
+    if (nextPage && lastDocument != null) {
+      query = query.startAfterDocument(lastDocument!);
+    }
+
+    final snapshot = await query.get();
+    setState(() {
+      if (nextPage) {
+        posts.addAll(snapshot.docs);
+      } else {
+        posts = snapshot.docs;
+      }
+      hasMore = snapshot.docs.length == 5;
+      lastDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
+      isLoading = false;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPosts();
   }
 
   @override
@@ -58,39 +98,83 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
+          StreamBuilder<bool>(
+            stream: isUserSubscribedStream(),
+            builder: (context, adSnapshot) {
+              if (!adSnapshot.hasData) {
+                return const SizedBox.shrink();
+              }
+              if (adSnapshot.data!) {
+                return const SizedBox.shrink(); // Hide ad for subscribers
+              }
+              return Container(
+                height: 50,
+                margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                color: const Color(0xFF3F3F3F),
+                child: const Center(child: Text('Ad Space', style: TextStyle(color: Color(0xFFF2F2F4)))),
+              );
+            },
+          ),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                FilterButton(label: 'Week', currentFilter: filter, onTap: () => setState(() => filter = 'Week')),
-                FilterButton(label: 'Month', currentFilter: filter, onTap: () => setState(() => filter = 'Month')),
-                FilterButton(label: 'Year', currentFilter: filter, onTap: () => setState(() => filter = 'Year')),
+                FilterButton(label: 'Week', currentFilter: filter, onTap: () {
+                  setState(() {
+                    filter = 'Week';
+                    posts.clear();
+                    lastDocument = null;
+                    hasMore = true;
+                  });
+                  _loadPosts();
+                }),
+                FilterButton(label: 'Month', currentFilter: filter, onTap: () {
+                  setState(() {
+                    filter = 'Month';
+                    posts.clear();
+                    lastDocument = null;
+                    hasMore = true;
+                  });
+                  _loadPosts();
+                }),
+                FilterButton(label: 'Year', currentFilter: filter, onTap: () {
+                  setState(() {
+                    filter = 'Year';
+                    posts.clear();
+                    lastDocument = null;
+                    hasMore = true;
+                  });
+                  _loadPosts();
+                }),
               ],
             ),
           ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('wordpress_posts')
-                  .where('date', isGreaterThan: _getFilterDate().toIso8601String())
-                  .orderBy('date', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
-                }
-                if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                final posts = snapshot.data!.docs;
-                return ListView.builder(
-                  itemCount: posts.length,
-                  itemBuilder: (context, index) {
-                    final post = posts[index].data() as Map<String, dynamic>;
-                    return NewsModule(post: post);
-                  },
-                );
-              },
-            ),
+            child: posts.isEmpty && !isLoading
+                ? const Center(child: Text('No stories available', style: TextStyle(color: Color(0xFFF2F2F4))))
+                : ListView.builder(
+                    itemCount: posts.length + (hasMore ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == posts.length && hasMore) {
+                        return Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: ElevatedButton(
+                            onPressed: () => _loadPosts(nextPage: true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFC5BE92),
+                              foregroundColor: const Color(0xFF000000),
+                            ),
+                            child: isLoading
+                                ? const CircularProgressIndicator(color: Color(0xFF000000))
+                                : const Text('Next Page'),
+                          ),
+                        );
+                      }
+                      final post = posts[index].data() as Map<String, dynamic>;
+                      return NewsModule(post: post);
+                    },
+                  ),
           ),
         ],
       ),
@@ -171,7 +255,7 @@ class NewsModule extends StatelessWidget {
     final imageUrls = _extractImageUrls(post['content'] ?? '');
 
     return GestureDetector(
-      key: Key(post['id'].toString()), // Unique key based on post ID
+      key: Key(post['id'].toString()),
       onTap: () => Navigator.pushNamed(context, '/story', arguments: post),
       child: Container(
         height: 450,
@@ -214,7 +298,7 @@ class NewsModule extends StatelessWidget {
                             style: const TextStyle(
                               color: Color(0xFFF2F2F4),
                               fontSize: 16,
-                              fontStyle: FontStyle.italic, // Fixed: Changed from FontWeight.italic
+                              fontStyle: FontStyle.italic,
                             ),
                           ),
                         ),
@@ -275,7 +359,7 @@ class _SaveIconButtonState extends State<SaveIconButton> {
   void didUpdateWidget(SaveIconButton oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.post['id'] != widget.post['id']) {
-      _checkSavedState(); // Re-check if post ID changes
+      _checkSavedState();
     }
   }
 
@@ -311,57 +395,57 @@ class _SaveIconButtonState extends State<SaveIconButton> {
   }
 
   Future<void> _toggleSavePost(BuildContext context) async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Please sign in to save stories'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-    return;
-  }
-
-  final ref = FirebaseFirestore.instance
-      .collection('users')
-      .doc(user.uid)
-      .collection('saved_stories')
-      .doc(widget.post['id'].toString());
-
-  setState(() {
-    _isSaved = !_isSaved;
-  });
-
-  try {
-    if (_isSaved) {
-      await ref.set(widget.post);
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Saved!'),
-          duration: Duration(seconds: 1),
+          content: Text('Please sign in to save stories'),
+          duration: Duration(seconds: 2),
         ),
       );
-    } else {
-      await ref.delete();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Removed from saved stories'),
-          duration: Duration(seconds: 1),
-        ),
-      );
+      return;
     }
-  } catch (e) {
+
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('saved_stories')
+        .doc(widget.post['id'].toString());
+
     setState(() {
       _isSaved = !_isSaved;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Failed to update: $e'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+
+    try {
+      if (_isSaved) {
+        await ref.set(widget.post);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Saved!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        await ref.delete();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Removed from saved stories'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isSaved = !_isSaved;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update: $e'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {

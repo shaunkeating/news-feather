@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'home_screen.dart';
+import 'utils/subscription.dart';
 
 class SavedStoriesScreen extends StatefulWidget {
   const SavedStoriesScreen({super.key});
@@ -35,6 +36,23 @@ class _SavedStoriesScreenState extends State<SavedStoriesScreen> {
         ),
         body: Column(
           children: [
+            StreamBuilder<bool>(
+              stream: isUserSubscribedStream(),
+              builder: (context, adSnapshot) {
+                if (!adSnapshot.hasData) {
+                  return const SizedBox.shrink();
+                }
+                if (adSnapshot.data!) {
+                  return const SizedBox.shrink(); // Hide ad for subscribers
+                }
+                return Container(
+                  height: 50,
+                  margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                  color: const Color(0xFF3F3F3F),
+                  child: const Center(child: Text('Ad Space', style: TextStyle(color: Color(0xFFF2F2F4)))),
+                );
+              },
+            ),
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Row(
@@ -122,6 +140,29 @@ class _SavedStoriesScreenState extends State<SavedStoriesScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class FilterButton extends StatelessWidget {
+  final String label;
+  final String currentFilter;
+  final VoidCallback onTap;
+
+  const FilterButton({required this.label, required this.currentFilter, required this.onTap, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4.0),
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: label == currentFilter ? const Color(0xFFC5BE92) : const Color(0xFF2F2F2F),
+          foregroundColor: label == currentFilter ? const Color(0xFF000000) : const Color(0xFFF2F2F4),
+        ),
+        child: Text(label),
       ),
     );
   }

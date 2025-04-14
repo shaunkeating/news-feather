@@ -56,52 +56,91 @@ class _NewsFeatherUltimateScreenState extends State<NewsFeatherUltimateScreen> {
 
   Future<void> _checkSubscriptionStatus() async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      if (mounted) {
+        setState(() {
+          _isSubscribed = false;
+          _loading = false;
+        });
+      }
+      return;
+    }
 
     final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     if (mounted) {
       setState(() {
         _isSubscribed = doc.data()?['isSubscribed'] ?? false;
+        _loading = false;
       });
     }
   }
 
   Future<void> _handlePurchaseUpdate(List<PurchaseDetails> purchases) async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return;
-
-  for (final purchase in purchases) {
-    if (purchase.status == PurchaseStatus.purchased) {
-      if (purchase.purchaseID != 'test_purchase') {
-        await _inAppPurchase.completePurchase(purchase);
-      }
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set({'isSubscribed': true}, SetOptions(merge: true));
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
       if (mounted) {
-        setState(() => _isSubscribed = true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Subscription successful!'),
+            content: Text('Please sign in to subscribe'),
             duration: Duration(seconds: 2),
           ),
         );
       }
-    } else if (purchase.status == PurchaseStatus.error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Purchase error: ${purchase.error?.message}'),
-            duration: Duration(seconds: 2),
-          ),
-        );
+      return;
+    }
+
+    for (final purchase in purchases) {
+      if (purchase.status == PurchaseStatus.purchased) {
+        try {
+          if (purchase.purchaseID != 'test_purchase') {
+            await _inAppPurchase.completePurchase(purchase);
+          }
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({'isSubscribed': true}, SetOptions(merge: true));
+          if (mounted) {
+            setState(() => _isSubscribed = true);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Subscription successful!'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to update subscription: $e'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      } else if (purchase.status == PurchaseStatus.error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Purchase error: ${purchase.error?.message ?? "Unknown error"}'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
       }
     }
   }
-}
 
   void _buyProduct(ProductDetails product) {
+    if (!_isAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Purchases not available'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
     _handlePurchaseUpdate([
       PurchaseDetails(
         purchaseID: 'test_purchase',
@@ -118,38 +157,44 @@ class _NewsFeatherUltimateScreenState extends State<NewsFeatherUltimateScreen> {
   }
 
   Future<void> _endSubscription() async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Please sign in to manage subscriptions'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-    return;
-  }
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please sign in to manage subscriptions'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
 
-  try {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .set({'isSubscribed': false}, SetOptions(merge: true));
-    setState(() => _isSubscribed = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Subscription ended'),
-        duration: Duration(seconds: 2),
-      ),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Failed to end subscription: $e'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set({'isSubscribed': false}, SetOptions(merge: true));
+      if (mounted) {
+        setState(() => _isSubscribed = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Subscription ended'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to end subscription: $e'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -263,13 +308,13 @@ class _NewsFeatherUltimateScreenState extends State<NewsFeatherUltimateScreen> {
                     ElevatedButton(
                       onPressed: null,
                       style: ElevatedButton.styleFrom(
-  backgroundColor: const Color(0xFF2F2F2F),
-  foregroundColor: const Color(0xFFF2F2F4).withOpacity(0.5),
-  minimumSize: const Size(double.infinity, 50),
-  shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(12),
-  ),
-),
+                        backgroundColor: const Color(0xFF2F2F2F),
+                        foregroundColor: const Color(0xFFF2F2F4).withOpacity(0.5),
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                       child: const Text(
                         'Subscribed',
                         style: TextStyle(fontSize: 16),
@@ -315,13 +360,13 @@ class _NewsFeatherUltimateScreenState extends State<NewsFeatherUltimateScreen> {
                     ElevatedButton(
                       onPressed: _endSubscription,
                       style: ElevatedButton.styleFrom(
-  backgroundColor: const Color(0xFFC5BE92),
-  foregroundColor: const Color(0xFF000000),
-  minimumSize: const Size(double.infinity, 50),
-  shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(12),
-  ),
-),
+                        backgroundColor: const Color(0xFFC5BE92),
+                        foregroundColor: const Color(0xFF000000),
+                        minimumSize: const Size(double.infinity, 50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                       child: const Text(
                         'End Subscription',
                         style: TextStyle(fontSize: 16),
