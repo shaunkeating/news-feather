@@ -14,8 +14,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String filter = 'Week';
-  DocumentSnapshot? lastDocument;
   List<DocumentSnapshot> posts = [];
+  List<DocumentSnapshot?> lastDocuments = [null]; // Track last doc per page
+  int page = 0;
   bool hasMore = true;
   bool isLoading = false;
 
@@ -26,8 +27,8 @@ class _HomeScreenState extends State<HomeScreen> {
     return now.subtract(const Duration(days: 365));
   }
 
-  Future<void> _loadPosts({bool nextPage = false}) async {
-    if (isLoading || !hasMore) return;
+  Future<void> _loadPosts({bool nextPage = false, bool previousPage = false}) async {
+    if (isLoading || (!hasMore && nextPage)) return;
     setState(() {
       isLoading = true;
     });
@@ -38,19 +39,30 @@ class _HomeScreenState extends State<HomeScreen> {
         .orderBy('date', descending: true)
         .limit(5);
 
-    if (nextPage && lastDocument != null) {
-      query = query.startAfterDocument(lastDocument!);
+    if (nextPage) {
+      query = query.startAfterDocument(lastDocuments[page]!);
+    } else if (previousPage && page > 0) {
+      query = query.endBeforeDocument(lastDocuments[page - 1]!);
     }
 
     final snapshot = await query.get();
     setState(() {
       if (nextPage) {
-        posts.addAll(snapshot.docs);
-      } else {
+        page++;
         posts = snapshot.docs;
+        lastDocuments.add(snapshot.docs.isNotEmpty ? snapshot.docs.last : null);
+      } else if (previousPage) {
+        page--;
+        posts = snapshot.docs;
+      } else {
+        page = 0;
+        posts = snapshot.docs;
+        lastDocuments = [null];
+        if (snapshot.docs.isNotEmpty) {
+          lastDocuments.add(snapshot.docs.last);
+        }
       }
       hasMore = snapshot.docs.length == 5;
-      lastDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
       isLoading = false;
     });
   }
@@ -124,7 +136,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   setState(() {
                     filter = 'Week';
                     posts.clear();
-                    lastDocument = null;
+                    lastDocuments = [null];
+                    page = 0;
                     hasMore = true;
                   });
                   _loadPosts();
@@ -133,7 +146,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   setState(() {
                     filter = 'Month';
                     posts.clear();
-                    lastDocument = null;
+                    lastDocuments = [null];
+                    page = 0;
                     hasMore = true;
                   });
                   _loadPosts();
@@ -142,7 +156,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   setState(() {
                     filter = 'Year';
                     posts.clear();
-                    lastDocument = null;
+                    lastDocuments = [null];
+                    page = 0;
                     hasMore = true;
                   });
                   _loadPosts();
@@ -153,26 +168,65 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(
             child: posts.isEmpty && !isLoading
                 ? const Center(child: Text('No stories available', style: TextStyle(color: Color(0xFFF2F2F4))))
-                : ListView.builder(
-                    itemCount: posts.length + (hasMore ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == posts.length && hasMore) {
-                        return Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: ElevatedButton(
-                            onPressed: () => _loadPosts(nextPage: true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFC5BE92),
-                              foregroundColor: const Color(0xFF000000),
-                            ),
-                            child: isLoading
-                                ? const CircularProgressIndicator(color: Color(0xFF000000))
-                                : const Text('Next Page'),
-                          ),
-                        );
-                      }
-                      final post = posts[index].data() as Map<String, dynamic>;
-                      return NewsModule(post: post);
+                : StreamBuilder<bool>(
+                    stream: isUserSubscribedStream(),
+                    builder: (context, adSnapshot) {
+                      final showAd = adSnapshot.hasData && !adSnapshot.data!;
+                      final itemCount = posts.length + (showAd ? 1 : 0) + 1; // Stories + ad + buttons
+                      return ListView.builder(
+                        itemCount: itemCount,
+                        itemBuilder: (context, index) {
+                          if (showAd && index == 2) {
+                            return Container(
+                              height: 250,
+                              width: 300,
+                              margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+                              color: const Color(0xFF3F3F3F),
+                              child: const Center(child: Text('Ad Space (300x250)', style: TextStyle(color: Color(0xFFF2F2F4)))),
+                            );
+                          }
+                          if (index == itemCount - 1) {
+                            return Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  if (page > 0) ...[
+                                    ElevatedButton(
+                                      onPressed: isLoading ? null : () => _loadPosts(previousPage: true),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFFC5BE92),
+                                        foregroundColor: const Color(0xFF000000),
+                                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                      ),
+                                      child: isLoading && !hasMore
+                                          ? const CircularProgressIndicator(color: Color(0xFF000000))
+                                          : const Text('Previous Page'),
+                                    ),
+                                    const SizedBox(width: 16),
+                                  ],
+                                  if (hasMore)
+                                    ElevatedButton(
+                                      onPressed: isLoading ? null : () => _loadPosts(nextPage: true),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFFC5BE92),
+                                        foregroundColor: const Color(0xFF000000),
+                                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                      ),
+                                      child: isLoading && hasMore
+                                          ? const CircularProgressIndicator(color: Color(0xFF000000))
+                                          : const Text('Next Page'),
+                                    ),
+                                ],
+                              ),
+                            );
+                          }
+                          final postIndex = showAd ? (index < 2 ? index : index - 1) : index;
+                          if (postIndex >= posts.length) return const SizedBox.shrink();
+                          final post = posts[postIndex].data() as Map<String, dynamic>;
+                          return NewsModule(post: post);
+                        },
+                      );
                     },
                   ),
           ),
