@@ -209,24 +209,24 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFFF2F2F4)),
-          onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
+  automaticallyImplyLeading: false,
+  leading: IconButton(
+    icon: const Icon(Icons.arrow_back, color: Color(0xFFF2F2F4)),
+    onPressed: () => Navigator.pop(context), // Changed from pushReplacementNamed
+  ),
+  title: const SizedBox.shrink(),
+  actions: [
+    const Padding(
+      padding: EdgeInsets.only(right: 16.0),
+      child: Center(
+        child: Text(
+          'Profile & Settings',
+          style: TextStyle(color: Color(0xFFF2F2F4), fontSize: 18),
         ),
-        title: const SizedBox.shrink(),
-        actions: [
-          const Padding(
-            padding: EdgeInsets.only(right: 16.0),
-            child: Center(
-              child: Text(
-                'Profile & Settings',
-                style: TextStyle(color: Color(0xFFF2F2F4), fontSize: 18),
-              ),
-            ),
-          ),
-        ],
       ),
+    ),
+  ],
+),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ListView(

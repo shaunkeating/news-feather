@@ -69,11 +69,11 @@ class NewsFeatherApp extends StatelessWidget {
       case '/home':
         return MaterialPageRoute(builder: (_) => HomeScreen());
       case '/saved':
-        return MaterialPageRoute(builder: (_) => SavedStoriesScreen());
+        return SlidePageRoute(page: const SavedStoriesScreen());
       case '/profile':
-        return MaterialPageRoute(builder: (_) => ProfileSettingsScreen());
+        return SlidePageRoute(page: const ProfileSettingsScreen());
       case '/ultimate':
-        return MaterialPageRoute(builder: (_) => NewsFeatherUltimateScreen());
+        return SlidePageRoute(page: const NewsFeatherUltimateScreen());
       case '/story':
         final post = settings.arguments as Map<String, dynamic>? ?? {};
         return MaterialPageRoute(builder: (_) => StoryDetailsScreen(post: post));
@@ -85,4 +85,27 @@ class NewsFeatherApp extends StatelessWidget {
         );
     }
   }
+}
+
+class SlidePageRoute extends PageRouteBuilder {
+  final Widget page;
+
+  SlidePageRoute({required this.page})
+      : super(
+          pageBuilder: (context, animation, secondaryAnimation) => page,
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            const begin = Offset(-1.0, 0.0); // Slide from left
+            const end = Offset.zero;
+            const curve = Curves.easeInOut;
+            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+            var offsetAnimation = animation.drive(tween);
+
+            return SlideTransition(
+              position: offsetAnimation,
+              child: child,
+            );
+          },
+          reverseTransitionDuration: const Duration(milliseconds: 300),
+          transitionDuration: const Duration(milliseconds: 300),
+        );
 }

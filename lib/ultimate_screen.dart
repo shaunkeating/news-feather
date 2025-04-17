@@ -37,7 +37,7 @@ class _NewsFeatherUltimateScreenState extends State<NewsFeatherUltimateScreen> {
   }
 
   Future<void> _initializePurchases() async {
-    _isAvailable = true; // Simulate availability
+    _isAvailable = true;
     setState(() {
       _products = [
         ProductDetails(
@@ -205,13 +205,13 @@ class _NewsFeatherUltimateScreenState extends State<NewsFeatherUltimateScreen> {
     }
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFFF2F2F4)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('News Feather Ultimate'),
-      ),
+  automaticallyImplyLeading: false,
+  leading: IconButton(
+    icon: const Icon(Icons.arrow_back, color: Color(0xFFF2F2F4)),
+    onPressed: () => Navigator.pop(context), // Changed from pushReplacementNamed
+  ),
+  title: const Text('News Feather Ultimate'),
+),
       body: ListView(
         children: [
           Padding(

@@ -27,13 +27,13 @@ class _SavedStoriesScreenState extends State<SavedStoriesScreen> {
     return ScaffoldMessenger(
       child: Scaffold(
         appBar: AppBar(
-          automaticallyImplyLeading: false,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFFF2F2F4)),
-            onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
-          ),
-          title: const Text('Saved Stories'),
-        ),
+  automaticallyImplyLeading: false,
+  leading: IconButton(
+    icon: const Icon(Icons.arrow_back, color: Color(0xFFF2F2F4)),
+    onPressed: () => Navigator.pop(context), // Changed from pushReplacementNamed
+  ),
+  title: const Text('Saved Stories'),
+),
         body: Column(
           children: [
             StreamBuilder<bool>(
@@ -43,7 +43,7 @@ class _SavedStoriesScreenState extends State<SavedStoriesScreen> {
                   return const SizedBox.shrink();
                 }
                 if (adSnapshot.data!) {
-                  return const SizedBox.shrink(); // Hide ad for subscribers
+                  return const SizedBox.shrink();
                 }
                 return Container(
                   height: 50,
